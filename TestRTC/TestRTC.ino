@@ -26,6 +26,7 @@ void setup() {
   }
   Wire.begin();
   rtc.begin();
+  SPI.begin();
   DateTime now = rtc.now();// Catch the time on RTC for now
   DateTime PCTime = DateTime(__DATE__, __TIME__); // Catch the time on PC for now
 

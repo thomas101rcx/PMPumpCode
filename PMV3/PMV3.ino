@@ -26,6 +26,8 @@ void setup() {
   Serial.begin(9600);
   pinMode(A6, OUTPUT);
   pinMode(TxPin, OUTPUT);
+  pinMode(A2, INPUT);
+  pinMode(A1, INPUT);
   digitalWrite(TxPin, HIGH);
   LCD.begin(9600);
   delay(1000); // need this for print statement within setup 
@@ -75,7 +77,7 @@ void setup() {
 
   //Pump setup
 
-
+  SPI.begin();
   //SD card setup
   if (SD.begin(10) == false) {
     Serial.println("It didn't initialized");
@@ -106,7 +108,7 @@ void setup() {
   //This is to read the last counter value from previous starting point
   //int a = sdRead(buffer);
   //Serial.println(a);
-
+  
   if (sdRead(buffer) == 0) {
     //When we can start a new Trial , writes in The inital starting time (Tstart) to SD card
     year = String(now.year(), DEC);
@@ -197,47 +199,59 @@ int sdRead(const char * fileName) {
   return result;
 }
 
-void loop() {
 
+//Timer for SD logging
+elapsedMillis sinceStartup;
+void loop() {
+ 
   static float pwmhigh = 0.5; // For 0.6 LPM
-  //The reason to set pwmhigh and pwmlow is to start with a initial value for the feedback loop to either add up the error or subtract the error, reaching the desire power output -> desire flowrate.
+
+  
   for (uint32_t i = 0; i < 1000; i++) {
-    delayMicroseconds(100);
+    delayMicroseconds(50);
     Return_Flow_Rate();
   }
-  Serial.println(avgFlow);
-  int displayflow = avgFlow;
 
-  if (millis() >= 0) {
-    float errorHigh = TARGET_FLOW - avgFlow;
-    pwmhigh += errorHigh / 100;
+  float displayFlow = avgFlow;
+
+  if (sinceStartup >= 0) {
+
+    if(digitalRead(A1) == HIGH){
+      TARGET_FLOW += 0.1;
+    }
+    if(digitalRead(A2) == HIGH){
+      TARGET_FLOW -= 0.1;  
+    }
+
     
+    float errorHigh = TARGET_FLOW - avgFlow;
+    pwmhigh += errorHigh / 100;    
     pwmhigh = max(pwmhigh, 0); // For pwmhigh < 0
     pwmhigh = min(1, pwmhigh); // For pwmhigh > 1
     
     //Serial.println(errorHigh);
     // 100 is a time constant that tells us how precise do we want to get to the desire flow rate/ power output.
-    Serial.println(pwmhigh);
+    //Serial.println(pwmhigh);
     writePumpA(pwmhigh);
+    
   }
 
-  if(millis() % 1000 ==0){
-    
+  if(sinceStartup >=0){
     LCD.write(12);
     LCD.write(17);
     delay(5);
-    LCD.print("Flow rate :" + displayflow);
+    LCD.print("Flow rate ");
+    LCD.print((float)displayFlow, 3);
     LCD.write(13);                
-    delay(2000);
+    delay(50);
     LCD.write(12);
     delay(5);
     LCD.write(18);
-    
   }
 
   //Every minute log the data into SD card , "Time + Flowrate + Counter" for desire time,  ex: 48 hours
   
-  if (restart == false && millis() % 60000 == 0 && avgFlow >= 0.2) {
+  if (restart == false && sinceStartup >= 60000 && avgFlow >= 1.0) {
     DateTime now = rtc.now();
     year = String(now.year(), DEC);
     //Convert from Now.year() long to Decimal String object
@@ -254,7 +268,7 @@ void loop() {
 
   // run from when the power shut off
 
-  if (restart == true && millis() % 60000 == 0 && avgFlow >= 0.2) {
+  if (restart == true && sinceStartup  >= 60000 && avgFlow >= 1.0) {
     DateTime now = rtc.now();
     year = String(now.year(), DEC);
     //Convert from Now.year() long to Decimal String object
@@ -269,6 +283,12 @@ void loop() {
     restartcounter++;
   }
 
+  //Every 60 seconds, restart Timer
+  if(sinceStartup >= 60000){
+    sinceStartup = 0 ;
+  }
+
+   
   //Restart counter will stop once it reaches 48 hours
   
   if (restartcounter > 2880) {
