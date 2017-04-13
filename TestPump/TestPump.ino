@@ -14,10 +14,12 @@ float a = 0;
 
 float TARGET_FLOW = 4.0;
 float avgFlow = 0;
+double errSum;
+double lastErr;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(A6, OUTPUT);
+  pinMode(A7, OUTPUT);
   Wire.begin();
   RTC.begin();
 }
@@ -26,7 +28,7 @@ void writePumpA(float p) {
   p = max(p, 0);
   p = min(1, p);
   uint8_t power = p * 255;
-  analogWrite(A6, power);
+  analogWrite(A7, power);
 }
 
 void Return_Flow_Rate() {
@@ -39,7 +41,7 @@ void Return_Flow_Rate() {
   //This is for 0 -10 SLPM Flow sensor
   //curFlow = 2.5*(1.5*Vo - 1.24);
   //This is for 0 -5 SLPM Flow sensor
-  curFlow = 1.25*(1.5*Vo - 1.24);
+  curFlow = 1.25*(1.5*Vo - 1.22);
   avgFlow += (curFlow - avgFlow) / 50000;
 
 }
@@ -52,19 +54,27 @@ void loop() {
   
   for(uint32_t i = 0; i < 1000; i++)
   {
-    delayMicroseconds(10);
+    delayMicroseconds(3);
     Return_Flow_Rate();
   }
   Serial.println(avgFlow);
 
-  if (millis() >= 0) {
-    float errorHigh = TARGET_FLOW - avgFlow;
+  
+    float error = TARGET_FLOW - avgFlow;
+    errSum += (error * 0.0067);
+    double dErr = (error - lastErr) / 200;
+  
+  
+    pwmhigh = 0.9 * error + 0.9 * errSum + 1 * dErr;
+    //pwmhigh += errorHigh / 200;    
     pwmhigh = max(pwmhigh, 0); // For pwmhigh < 0
     pwmhigh = min(1, pwmhigh); // For pwmhigh > 1
-    pwmhigh += errorHigh / 100;
-    // 100 is a time constant that tells us how precise do we want to get to the desire flow rate/ power output.
+
+    lastErr = error;
+    //Serial.println(pwmhigh);
     writePumpA(pwmhigh);
-  }
+
+  
 
 
 }
