@@ -10,13 +10,8 @@ const int TxPin = 1;
 float TARGET_FLOW = 4.0;
 float avgFlow = 0;
 static uint32_t counter = 1;
-static uint32_t restartcounter = 0;
-int timecounter = 0;
-int runningtime = 0;
-int timeleft = 0;
 unsigned long lastTime;
 double errSum, lastErr;
-bool restart = true;
 String year, month, day, second, hour, minute;
 String writeString;
 File myFile;
@@ -104,32 +99,7 @@ void setup() {
     delay(5);
     LCD.write(18);
   }
-
-  //Check if the power has been cut off for the past 48 hours
-
-  //This is to read the last counter value from previous starting point
-  //int a = sdRead(buffer);
-  //Serial.println(a);
-
-  if (sdRead(buffer) == 0) {
-    //When we can start a new Trial , writes in The inital starting time (Tstart) to SD card
-    year = String(now.year(), DEC);
-    month = String(now.month(), DEC);
-    day = String(now.day(), DEC);
-    hour = String(now.hour(), DEC);
-    minute = String(now.minute(), DEC);
-    second = String(now.second(), DEC);
-    String logHeader = year + "/" + month + "/" + day + " " + hour + ":" + minute + ":" + second;
-    sdLog(buffer, "FlowRate_4.0: New Logging Session - " + logHeader);
-    Serial.println(logHeader);
-    restart = false;
-  } else {
-    //Read from previous trial that doesn't last 48 hours, start from the point and continue until 48 hours
-    runningtime = sdRead(buffer);
-    timeleft = 2880 - runningtime ;
-    restartcounter = runningtime + 1;
-    restart = true;
-  }
+  
 }
 
 //Writes to pump A, takes a float from 0 to 1
@@ -178,35 +148,7 @@ void sdLog(const char * fileName, String stringToWrite) {
   }
 }
 
-//Read the last tiemcounter from SD card when power is shut off
-int sdRead(const char * fileName) {
-  File myfile = SD.open(fileName);
-  int timecount = 0;
-  int timecountarray[20] = {
-    0
-  };
-  if (myfile) {
-    while (myfile.available()) {
-      String line = myfile.readStringUntil('\n');
-      int spaceIndex = line.indexOf(' ');
-      // Search for the next space just after the first
-      int secondspaceIndex = line.indexOf(' ', spaceIndex + 1);
-      int thirdspaceIndex = line.indexOf(' ', secondspaceIndex + 1);
-      String firstValue = line.substring(0, spaceIndex);
-      String secondValue = line.substring(spaceIndex + 1, secondspaceIndex);
-      String thirdValue = line.substring(secondspaceIndex + 1, thirdspaceIndex); // To the end of the string
-      String fourthValue = line.substring(thirdspaceIndex);
-      timecount = fourthValue.toInt();
-      timecountarray[0] = timecount;
-    }
-    myfile.close();
-  }
-  int result = timecountarray[0];
-  return result;
-}
 
-//Timer for SD logging
-elapsedMillis sinceStartup;
 
 void loop() {
 
@@ -219,27 +161,12 @@ void loop() {
 
   Serial.println(avgFlow);
 
-//      if(digitalRead(A1) == HIGH){
-//        TARGET_FLOW += 0.1;
-//      }
-//      if(digitalRead(A2) == HIGH){
-//        TARGET_FLOW -= 0.1;  
-//      }
 
-  float error = TARGET_FLOW - avgFlow;
-  errSum += (error * 0.032);
 
-  if (errSum >= 3.0) {
-    errSum = 0.95;
-  }
-
-  double dErr = (error - lastErr) / 200;
-
-  pwmhigh = 0.95 * error + 0.95 * errSum + 1.1 * dErr;
-  pwmhigh = max(pwmhigh, 0); // For pwmhigh < 0
-  pwmhigh = min(1, pwmhigh); // For pwmhigh > 1
-
-  lastErr = error;
+    float errorHigh = TARGET_FLOW - avgFlow;
+    pwmhigh += errorHigh / 200;    
+    pwmhigh = max(pwmhigh, 0); // For pwmhigh < 0
+    pwmhigh = min(1, pwmhigh); // For pwmhigh > 1
   //Serial.println(pwmhigh);
   writePumpA(pwmhigh);
 
@@ -259,7 +186,7 @@ void loop() {
 
   //Every minute log the data into SD card , "Time + Flowrate + Counter" for desire time,  ex: 48 hours
 
-  if (restart == false && sinceStartup >= 60000 && avgFlow >= 1.0) {
+  if (avgFlow >= 1.0) {
     DateTime now = rtc.now();
     year = String(now.year(), DEC);
     //Convert from Now.year() long to Decimal String object
@@ -274,40 +201,4 @@ void loop() {
     counter++;
   }
 
-  // run from when the power shut off
-
-  if (restart == true && sinceStartup >= 60000 && avgFlow >= 1.0) {
-    DateTime now = rtc.now();
-    year = String(now.year(), DEC);
-    //Convert from Now.year() long to Decimal String object
-    month = String(now.month(), DEC);
-    day = String(now.day(), DEC);
-    hour = String(now.hour(), DEC);
-    minute = String(now.minute(), DEC);
-    second = String(now.second(), DEC);
-    writeString = year + "/" + month + "/" + day + " " + hour + ":" + minute + ":" + second + " ";
-    sdLog(buffer, writeString + avgFlow + " " + restartcounter);
-    Serial.println(writeString);
-    restartcounter++;
-  }
-
-  //Every 60 seconds, restart Timer
-
-  if (sinceStartup >= 60000) {
-    sinceStartup = 0;
-  }
-
-  //Restart counter will stop once it reaches 48 hours
-
-  if (restartcounter > 2880) {
-    pwmhigh = 0;
-    writePumpA(0);
-  }
-
-  //Turn off pump once it reach 48 hours
-
-  if (counter > 2880) {
-    pwmhigh = 0;
-    writePumpA(0);
-  }
 }
