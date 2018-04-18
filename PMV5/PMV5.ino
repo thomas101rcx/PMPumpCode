@@ -209,10 +209,10 @@ int sdReadtime(const char * fileName) {
   return result;
 }
 
-int sdReadManualFlowRate(const char * fileName) {
+float sdReadManualFlowRate(const char * fileName) {
   File myfile = SD.open(fileName);
-  int timecount = 0;
-  int timecountarray[20] = {
+  float timecount = 0;
+  float timecountarray[20] = {
     0
   };
   if (myfile) {
@@ -227,12 +227,12 @@ int sdReadManualFlowRate(const char * fileName) {
 //      String secondValue = line.substring(spaceIndex + 1, secondspaceIndex);
 //      String thirdValue = line.substring(secondspaceIndex + 1, thirdspaceIndex); // To the end of the string
       String fourthValue = line.substring(thirdspaceIndex + 1, fourthspaceIndex);
-      timecount = fourthValue.toInt();
+      timecount = fourthValue.toFloat();
       timecountarray[0] = timecount;
     }
     myfile.close();
   }
-  int result = timecountarray[0];
+  float result = timecountarray[0];
   return result;
 }
 
@@ -249,11 +249,13 @@ void loop() {
   if(digitalRead(A2) == HIGH){
      TARGET_FLOW -= 0.1;  
   }
+  //Serial.println(TARGET_FLOW);
 
   for (uint32_t i = 0; i < 1000; i++) {
     delayMicroseconds(3);
     Return_Flow_Rate();
   }
+  
 
   Serial.println(avgFlow);
 
