@@ -31,7 +31,7 @@ void setup() {
   DateTime PCTime = DateTime(__DATE__, __TIME__); // Catch the time on PC for now
 
   //If any discrepencies , update with the time on  PC
-  if (now.unixtime() < PCTime.unixtime()) {
+  if (now.unixtime() < PCTime.unixtime() || now.unixtime() > PCTime.unixtime()) {
     rtc.adjust(DateTime(__DATE__, __TIME__));
   }
   if (SD.begin(10) == false) {

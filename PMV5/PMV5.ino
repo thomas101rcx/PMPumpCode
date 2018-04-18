@@ -24,7 +24,9 @@ const char * buffer = "Flowrate.txt";
 RTC_DS3231 rtc;
 SoftwareSerial LCD = SoftwareSerial(255, TxPin);
 void setup() {
+  
   //Set up Serial port for LCD and USB
+  
   Serial.begin(9600);
   pinMode(A7, OUTPUT);
   pinMode(TxPin, OUTPUT);
@@ -36,6 +38,7 @@ void setup() {
   LCD.write(17);
 
   //RTC setup
+  
   if (!rtc.begin()) {
     Serial.println("Can't fine RTC");
     //Clear screen
@@ -74,7 +77,9 @@ void setup() {
   //Pump setup
 
   SPI.begin();
+  
   //SD card setup
+  
   if (SD.begin(10) == false) {
     Serial.println("It didn't initialized");
     LCD.write(12);
@@ -98,11 +103,11 @@ void setup() {
   //Check if the power has been cut off for the past 48 hours
 
   //This is to read the last counter value from previous starting point
-  //int a = sdRead(buffer);
+  //int a = sdReadtime(buffer);
   //Serial.println(a);
 
-  if (sdRead(buffer) == 0) {
-    //When we can start a new Trial , writes in The inital starting time (Tstart) to SD card
+  if (sdReadtime(buffer) == 0) {
+    //When one can start a new Trial , writes in The inital starting time (Tstart) to SD card
     year = String(now.year(), DEC);
     month = String(now.month(), DEC);
     day = String(now.day(), DEC);
@@ -113,9 +118,12 @@ void setup() {
     sdLog(buffer, "FlowRate_4.0: New Logging Session - " + logHeader);
     Serial.println(logHeader);
     restart = false;
-  } else {
+  } 
+  else 
+  {
     //Read from previous trial that doesn't last 48 hours, start from the point and continue until 48 hours
-    runningtime = sdRead(buffer);
+    runningtime = sdReadtime(buffer);
+    TARGET_FLOW = sdReadManualFlowRate(buffer);
     timeleft = 2880 - runningtime ;
     restartcounter = runningtime + 1;
     restart = true;
@@ -130,6 +138,8 @@ void writePumpA(float p) {
   uint8_t power = p * 255;
   analogWrite(A7, power);
 }
+
+// function to return flow rate from the analog output pin 
 
 void Return_Flow_Rate() {
   float curFlow = 0;
@@ -169,9 +179,9 @@ void sdLog(const char * fileName, String stringToWrite) {
   }
 }
 
-//Read the last tiemcounter from SD card when power shuts off
+//Read the last timecounter from SD card when power shuts off
 
-int sdRead(const char * fileName) {
+int sdReadtime(const char * fileName) {
   File myfile = SD.open(fileName);
   int timecount = 0;
   int timecountarray[20] = {
@@ -184,10 +194,39 @@ int sdRead(const char * fileName) {
       // Search for the next space just after the first
       int secondspaceIndex = line.indexOf(' ', spaceIndex + 1);
       int thirdspaceIndex = line.indexOf(' ', secondspaceIndex + 1);
-      String firstValue = line.substring(0, spaceIndex);
-      String secondValue = line.substring(spaceIndex + 1, secondspaceIndex);
-      String thirdValue = line.substring(secondspaceIndex + 1, thirdspaceIndex); // To the end of the string
-      String fourthValue = line.substring(thirdspaceIndex);
+      int fourthspaceIndex = line.indexOf(' ', thirdspaceIndex + 1);
+//      String firstValue = line.substring(0, spaceIndex);
+//      String secondValue = line.substring(spaceIndex + 1, secondspaceIndex);
+//      String thirdValue = line.substring(secondspaceIndex + 1, thirdspaceIndex); // To the end of the string
+//      String fourthValue = line.substring(thirdspaceIndex + 1, fourthspaceIndex);
+      String fifthValue = line.substring(fourthspaceIndex);
+      timecount = fifthValue.toInt();
+      timecountarray[0] = timecount;
+    }
+    myfile.close();
+  }
+  int result = timecountarray[0];
+  return result;
+}
+
+int sdReadManualFlowRate(const char * fileName) {
+  File myfile = SD.open(fileName);
+  int timecount = 0;
+  int timecountarray[20] = {
+    0
+  };
+  if (myfile) {
+    while (myfile.available()) {
+      String line = myfile.readStringUntil('\n');
+      int spaceIndex = line.indexOf(' ');
+      // Search for the next space just after the first
+      int secondspaceIndex = line.indexOf(' ', spaceIndex + 1);
+      int thirdspaceIndex = line.indexOf(' ', secondspaceIndex + 1);
+      int fourthspaceIndex = line.indexOf(' ', thirdspaceIndex + 1);
+//      String firstValue = line.substring(0, spaceIndex);
+//      String secondValue = line.substring(spaceIndex + 1, secondspaceIndex);
+//      String thirdValue = line.substring(secondspaceIndex + 1, thirdspaceIndex); // To the end of the string
+      String fourthValue = line.substring(thirdspaceIndex + 1, fourthspaceIndex);
       timecount = fourthValue.toInt();
       timecountarray[0] = timecount;
     }
@@ -217,7 +256,6 @@ void loop() {
   }
 
   Serial.println(avgFlow);
-
 
   float error = TARGET_FLOW - avgFlow;
   errSum += (error * 0.032);
@@ -260,7 +298,7 @@ void loop() {
     minute = String(now.minute(), DEC);
     second = String(now.second(), DEC);
     writeString = year + "/" + month + "/" + day + " " + hour + ":" + minute + ":" + second + " ";
-    sdLog(buffer, writeString + avgFlow + " " + counter);
+    sdLog(buffer, writeString + avgFlow + " "+ TARGET_FLOW + " " + counter);
     Serial.println(writeString);
     counter++;
     LCD.write(12);
@@ -283,7 +321,7 @@ void loop() {
     minute = String(now.minute(), DEC);
     second = String(now.second(), DEC);
     writeString = year + "/" + month + "/" + day + " " + hour + ":" + minute + ":" + second + " ";
-    sdLog(buffer, writeString + avgFlow + " " + restartcounter);
+    sdLog(buffer, writeString + avgFlow + " "+ TARGET_FLOW +" " +restartcounter);
     Serial.println(writeString);
     restartcounter++;
     LCD.write(12);
