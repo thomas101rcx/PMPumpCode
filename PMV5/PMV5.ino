@@ -22,6 +22,7 @@ String writeString;
 File myFile;
 const char * buffer = "Flowrate.txt";
 RTC_DS3231 rtc;
+const int Max_runtime = 2880;
 SoftwareSerial LCD = SoftwareSerial(255, TxPin);
 void setup() {
   
@@ -121,10 +122,11 @@ void setup() {
   } 
   else 
   {
-    //Read from previous trial that doesn't last 48 hours, start from the point and continue until 48 hours
+    //Read from previous trial that doesn't last 48 hours, start from that time-stamp and continue until 48 hours 
+    //The flowrate is whatever the user chnaged to when the system was being setup, might not be 4.0.
     runningtime = sdReadtime(buffer);
     TARGET_FLOW = sdReadManualFlowRate(buffer);
-    timeleft = 2880 - runningtime ;
+    timeleft = Max_runtime - runningtime ;
     restartcounter = runningtime + 1;
     restart = true;
   }
@@ -195,10 +197,6 @@ int sdReadtime(const char * fileName) {
       int secondspaceIndex = line.indexOf(' ', spaceIndex + 1);
       int thirdspaceIndex = line.indexOf(' ', secondspaceIndex + 1);
       int fourthspaceIndex = line.indexOf(' ', thirdspaceIndex + 1);
-//      String firstValue = line.substring(0, spaceIndex);
-//      String secondValue = line.substring(spaceIndex + 1, secondspaceIndex);
-//      String thirdValue = line.substring(secondspaceIndex + 1, thirdspaceIndex); // To the end of the string
-//      String fourthValue = line.substring(thirdspaceIndex + 1, fourthspaceIndex);
       String fifthValue = line.substring(fourthspaceIndex);
       timecount = fifthValue.toInt();
       timecountarray[0] = timecount;
@@ -208,6 +206,8 @@ int sdReadtime(const char * fileName) {
   int result = timecountarray[0];
   return result;
 }
+
+// Read from the manual set flowrate before the power shuts off, restart from that flowrate
 
 float sdReadManualFlowRate(const char * fileName) {
   File myfile = SD.open(fileName);
@@ -223,9 +223,6 @@ float sdReadManualFlowRate(const char * fileName) {
       int secondspaceIndex = line.indexOf(' ', spaceIndex + 1);
       int thirdspaceIndex = line.indexOf(' ', secondspaceIndex + 1);
       int fourthspaceIndex = line.indexOf(' ', thirdspaceIndex + 1);
-//      String firstValue = line.substring(0, spaceIndex);
-//      String secondValue = line.substring(spaceIndex + 1, secondspaceIndex);
-//      String thirdValue = line.substring(secondspaceIndex + 1, thirdspaceIndex); // To the end of the string
       String fourthValue = line.substring(thirdspaceIndex + 1, fourthspaceIndex);
       timecount = fourthValue.toFloat();
       timecountarray[0] = timecount;
@@ -251,6 +248,8 @@ void loop() {
   }
   //Serial.println(TARGET_FLOW);
 
+  
+  // Read flowrate from Return_FLOW_Rate() function every 3 micro seconds for best sampling frequency.
   for (uint32_t i = 0; i < 1000; i++) {
     delayMicroseconds(3);
     Return_Flow_Rate();
@@ -267,6 +266,8 @@ void loop() {
   }
 
   double dErr = (error - lastErr) / 200;
+
+  // 0.95, 0.95 and 1.1 are PID control constants, can be tuned for better performance if the system changed.
 
   pwmhigh = 0.95 * error + 0.95 * errSum + 1.1 * dErr;
   pwmhigh = max(pwmhigh, 0); // For pwmhigh < 0
@@ -337,12 +338,13 @@ void loop() {
   //Every 60 seconds, restart Timer
 
   if (sinceStartup >= 60000) {
+    // 60000 = 60000 miliseconds = 60 seconds
     sinceStartup = 0;
   }
 
   //Restart counter will stop once it reaches 48 hours, Turn off pump as well
 
-  if (restartcounter > 2880 && counter > 2880) {
+  if (restartcounter > Max_runtime && counter > Max_runtime) {
     pwmhigh = 0;
     writePumpA(0);
   }
