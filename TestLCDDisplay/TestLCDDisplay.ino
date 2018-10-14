@@ -4,7 +4,7 @@
    NOTE: you must: #include <NewSoftSerial.h>
   BEFORE including the ParallaxLCD.h header
  */
-
+#include <SoftwareSerial.h>
 #include "ParallaxLCD.h"
 
 ParallaxLCD lcd(2,2,16); // desired pin, rows, cols
